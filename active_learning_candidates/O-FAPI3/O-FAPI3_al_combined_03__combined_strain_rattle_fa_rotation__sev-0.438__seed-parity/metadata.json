@@ -1,0 +1,125 @@
+{
+  "config_id": "O-FAPI3_al_combined_03__combined_strain_rattle_fa_rotation__sev-0.438__seed-parity",
+  "phase": "O-FAPI3",
+  "mode": "active_learning",
+  "seed": 3663235565,
+  "seed_origin": "parity",
+  "seed_origin_config_id": "O-FAPI3_parity_42__combined_strain_rattle_fa_rotation__sev-0.2",
+  "parity_master_seed": 20260810,
+  "new_master_seed": null,
+  "source": "O-FAPI3/CONTCAR",
+  "formula": "C4H20I12N8Pb4",
+  "natoms": 48,
+  "fa_groups": [
+    [
+      0,
+      4,
+      8,
+      12,
+      16,
+      28,
+      20,
+      24
+    ],
+    [
+      1,
+      5,
+      9,
+      13,
+      17,
+      29,
+      21,
+      25
+    ],
+    [
+      2,
+      10,
+      6,
+      14,
+      30,
+      18,
+      26,
+      22
+    ],
+    [
+      3,
+      11,
+      7,
+      15,
+      31,
+      19,
+      27,
+      23
+    ]
+  ],
+  "cell_A": [
+    [
+      8.7498612046,
+      -0.0991392177,
+      0.0400846277
+    ],
+    [
+      -0.0964833584,
+      8.886606496,
+      -0.0681051684
+    ],
+    [
+      0.0568697423,
+      -0.0992833796,
+      12.5856359877
+    ]
+  ],
+  "distortion_family": "combined",
+  "distortion_severity": 0.438,
+  "rotations": [
+    {
+      "fa_group": 1,
+      "kind": "axis_angle",
+      "angle_deg": 44.262969,
+      "axis": [
+        -0.97181367,
+        -0.18463311,
+        0.14659061
+      ]
+    },
+    {
+      "fa_group": 2,
+      "kind": "axis_angle",
+      "angle_deg": 43.540409,
+      "axis": [
+        0.28392268,
+        0.23416322,
+        0.92981477
+      ]
+    }
+  ],
+  "strain": [
+    [
+      -0.02988326,
+      -0.01099179,
+      0.00444427
+    ],
+    [
+      -0.01099179,
+      0.01239935,
+      -0.00775883
+    ],
+    [
+      0.00444427,
+      -0.00775883,
+      -0.01645418
+    ]
+  ],
+  "rattle_target": "all",
+  "rattle_sigma_A": 0.074375,
+  "distortion_label": "combined_strain_rattle_fa_rotation",
+  "minimum_distance_A": 0.7469893748176493,
+  "minimum_pair_indices": [
+    10,
+    30
+  ],
+  "minimum_pair_symbols": [
+    "N",
+    "H"
+  ]
+}

@@ -1,0 +1,25 @@
+SYSTEM = relax
+PREC   = Accurate
+ENCUT  = 520
+EDIFF  = 1E-7
+EDIFFG = -0.005
+POTIM = 0.1
+
+IBRION = 1
+ISIF   = 8
+NSW    = 100
+
+ISTART = 1
+ICHARG = 1
+ISMEAR = 0
+SIGMA  = 0.02
+LREAL  = .FALSE.
+
+IVDW = 11
+GGA = PE
+
+LWAVE  = .TRUE.
+LCHARG = .TRUE.
+
+KPAR  = 2
+NCORE = 1

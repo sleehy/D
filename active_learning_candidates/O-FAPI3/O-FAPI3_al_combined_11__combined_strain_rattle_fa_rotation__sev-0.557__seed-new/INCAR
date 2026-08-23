@@ -1,0 +1,25 @@
+SYSTEM = FAPbI3 MLP dataset single point
+PREC   = Accurate
+ENCUT  = 520
+EDIFF  = 1E-7
+NELM   = 200
+
+IBRION = -1
+NSW    = 0
+ISIF   = 2
+ISYM   = 0
+
+ISTART = 0
+ICHARG = 2
+ISMEAR = 0
+SIGMA  = 0.02
+LREAL  = .FALSE.
+
+IVDW   = 11
+GGA    = PE
+
+LWAVE  = .FALSE.
+LCHARG = .FALSE.
+
+KPAR  = 2
+NCORE = 1

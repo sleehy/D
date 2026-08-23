@@ -1,0 +1,83 @@
+{
+  "config_id": "O-FAPI3_parity_21__cage_rattle__sev-0.1",
+  "phase": "O-FAPI3",
+  "mode": "parity",
+  "seed": 1560329700,
+  "source": "O-FAPI3/CONTCAR",
+  "formula": "C4H20I12N8Pb4",
+  "natoms": 48,
+  "fa_groups": [
+    [
+      0,
+      4,
+      8,
+      12,
+      16,
+      28,
+      20,
+      24
+    ],
+    [
+      1,
+      5,
+      9,
+      13,
+      17,
+      29,
+      21,
+      25
+    ],
+    [
+      2,
+      10,
+      6,
+      14,
+      30,
+      18,
+      26,
+      22
+    ],
+    [
+      3,
+      11,
+      7,
+      15,
+      31,
+      19,
+      27,
+      23
+    ]
+  ],
+  "cell_A": [
+    [
+      9.0193899932,
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      8.7777678446,
+      0.0
+    ],
+    [
+      0.0,
+      0.0,
+      12.7961868063
+    ]
+  ],
+  "distortion_family": "cage_rattle",
+  "distortion_severity": 0.1,
+  "rattle_target": "Pb_I",
+  "rattle_sigma_A": 0.074,
+  "minimum_distance_A": 1.0189468527998746,
+  "minimum_pair_indices": [
+    6,
+    22
+  ],
+  "minimum_pair_symbols": [
+    "N",
+    "H"
+  ],
+  "original_config_id": "O-FAPI3_parity_21",
+  "distortion_label": "cage_rattle"
+}

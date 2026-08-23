@@ -1,0 +1,23 @@
+{
+  "generator": "dataset_generation/generate_fapbi3_dataset.py",
+  "seed": 20260731,
+  "total_structures": 200,
+  "structures_per_phase": 100,
+  "mode_counts_per_phase": {
+    "small_rotation": 18,
+    "wide_rotation": 14,
+    "cage_rattle": 17,
+    "all_rattle": 17,
+    "strain_rattle": 17,
+    "mixed": 17
+  },
+  "extended_existing_structures": 84,
+  "new_structures_added": 116,
+  "phases": {
+    "O-FAPI3": "O-FAPI3/CONTCAR",
+    "t-FAPI3": "t-FAPI3/CONTCAR"
+  },
+  "vasp_inputs_created": true,
+  "labels_present": false,
+  "note": "Run DFT single-point calculations to add energy, forces, and stress labels."
+}

@@ -1,0 +1,59 @@
+{
+  "config_id": "t-FAPI3_all_rattle_03",
+  "phase": "t-FAPI3",
+  "mode": "all_rattle",
+  "seed": 3964747857,
+  "source": "t-FAPI3/CONTCAR",
+  "formula": "C2H10I6N4Pb2",
+  "natoms": 24,
+  "fa_groups": [
+    [
+      0,
+      2,
+      3,
+      6,
+      7,
+      10,
+      8,
+      9
+    ],
+    [
+      1,
+      4,
+      5,
+      11,
+      12,
+      15,
+      13,
+      14
+    ]
+  ],
+  "cell_A": [
+    [
+      8.9515839677,
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      8.9515839677,
+      0.0
+    ],
+    [
+      0.0,
+      0.0,
+      6.3289724258
+    ]
+  ],
+  "rattle_target": "all",
+  "rattle_sigma_A": 0.02776985580564026,
+  "minimum_distance_A": 0.9694936095446931,
+  "minimum_pair_indices": [
+    3,
+    9
+  ],
+  "minimum_pair_symbols": [
+    "N",
+    "H"
+  ]
+}

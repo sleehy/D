@@ -1,0 +1,64 @@
+# Python and notebook caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# Local environments and secrets
+.venv/
+venv/
+env/
+.env
+.env.*
+!.env.example
+
+# Editor and operating-system files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# VASP proprietary input and generated/restart files
+# POTCAR must not be redistributed: it is covered by the VASP license.
+POTCAR
+WAVECAR
+CHG
+CHGCAR
+PCDAT
+EIGENVAL
+DOSCAR
+IBZKPT
+OUTCAR
+OSZICAR
+vasprun.xml
+vaspout.h5
+XDATCAR
+REPORT
+PROCAR
+LOCPOT
+ELFCAR
+*.wavecar
+*.vaspout.h5
+vasp*.log
+nohup.out
+
+# Machine-learning checkpoints and cached graph datasets
+*.pth
+*.pt
+finetunesevenn/sevenn_data/
+
+# Generated analysis/training artefacts
+finetunesevenn/.matplotlib/
+finetunesevenn/__pycache__/
+finetunesevenn/*_metrics.csv
+finetunesevenn/*_metrics.png
+finetunesevenn/eos_results/
+finetunesevenn/parity_results/
+
+# Application logs and temporary files
+*.log
+*.tmp
+*.swp

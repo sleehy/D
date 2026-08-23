@@ -1,0 +1,21 @@
+{
+  "generator": "dataset_generation/generate_parity_set.py",
+  "seed": 20260810,
+  "total_structures": 100,
+  "structures_per_phase": 50,
+  "families": [
+    "strong_strain",
+    "global_rattle",
+    "cage_rattle",
+    "fa_rotation_cage_rattle",
+    "combined"
+  ],
+  "per_family_per_phase": 10,
+  "phases": {
+    "O-FAPI3": "O-FAPI3/CONTCAR",
+    "t-FAPI3": "t-FAPI3/CONTCAR"
+  },
+  "vasp_inputs_created": true,
+  "labels_present": false,
+  "note": "Independent parity-test set; do not include these frames in fine-tuning."
+}

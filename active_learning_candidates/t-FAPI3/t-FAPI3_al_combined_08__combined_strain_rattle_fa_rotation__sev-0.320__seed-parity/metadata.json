@@ -1,0 +1,95 @@
+{
+  "config_id": "t-FAPI3_al_combined_08__combined_strain_rattle_fa_rotation__sev-0.320__seed-parity",
+  "phase": "t-FAPI3",
+  "mode": "active_learning",
+  "seed": 1877520591,
+  "seed_origin": "parity",
+  "seed_origin_config_id": "t-FAPI3_parity_44__combined_strain_rattle_fa_rotation__sev-0.4",
+  "parity_master_seed": 20260810,
+  "new_master_seed": null,
+  "source": "t-FAPI3/CONTCAR",
+  "formula": "C2H10I6N4Pb2",
+  "natoms": 24,
+  "fa_groups": [
+    [
+      0,
+      2,
+      3,
+      6,
+      7,
+      10,
+      8,
+      9
+    ],
+    [
+      1,
+      4,
+      5,
+      11,
+      12,
+      15,
+      13,
+      14
+    ]
+  ],
+  "cell_A": [
+    [
+      8.741896787,
+      0.0852726631,
+      -0.0257077325
+    ],
+    [
+      0.0852726631,
+      8.8891177141,
+      0.0073446073
+    ],
+    [
+      -0.0181759486,
+      0.0051928036,
+      6.265861367
+    ]
+  ],
+  "distortion_family": "combined",
+  "distortion_severity": 0.32,
+  "rotations": [
+    {
+      "fa_group": 0,
+      "kind": "axis_angle",
+      "angle_deg": 4.070197,
+      "axis": [
+        -0.73000746,
+        -0.23073423,
+        -0.64331239
+      ]
+    }
+  ],
+  "strain": [
+    [
+      -0.02342459,
+      0.00952599,
+      -0.00287186
+    ],
+    [
+      0.00952599,
+      -0.00697823,
+      0.00082048
+    ],
+    [
+      -0.00287186,
+      0.00082048,
+      -0.00997177
+    ]
+  ],
+  "rattle_target": "all",
+  "rattle_sigma_A": 0.0638,
+  "distortion_label": "combined_strain_rattle_fa_rotation",
+  "minimum_distance_A": 0.8718652529979264,
+  "minimum_pair_indices": [
+    4,
+    12
+  ],
+  "minimum_pair_symbols": [
+    "N",
+    "H"
+  ]
+}

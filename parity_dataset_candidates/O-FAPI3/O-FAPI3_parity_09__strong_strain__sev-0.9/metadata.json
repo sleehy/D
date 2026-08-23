@@ -1,0 +1,100 @@
+{
+  "config_id": "O-FAPI3_parity_09__strong_strain__sev-0.9",
+  "phase": "O-FAPI3",
+  "mode": "parity",
+  "seed": 2901549199,
+  "source": "O-FAPI3/CONTCAR",
+  "formula": "C4H20I12N8Pb4",
+  "natoms": 48,
+  "fa_groups": [
+    [
+      0,
+      4,
+      8,
+      12,
+      16,
+      28,
+      20,
+      24
+    ],
+    [
+      1,
+      5,
+      9,
+      13,
+      17,
+      29,
+      21,
+      25
+    ],
+    [
+      2,
+      10,
+      6,
+      14,
+      30,
+      18,
+      26,
+      22
+    ],
+    [
+      3,
+      11,
+      7,
+      15,
+      31,
+      19,
+      27,
+      23
+    ]
+  ],
+  "cell_A": [
+    [
+      9.0621711172,
+      0.1979784178,
+      0.104972174
+    ],
+    [
+      0.1926747364,
+      8.2604954305,
+      0.0152015773
+    ],
+    [
+      0.1489284252,
+      0.0221607846,
+      13.1376288931
+    ]
+  ],
+  "distortion_family": "strong_strain",
+  "distortion_severity": 0.9,
+  "strain": [
+    [
+      0.00474324,
+      0.02195031,
+      0.0116385
+    ],
+    [
+      0.02195031,
+      -0.05892984,
+      0.00173183
+    ],
+    [
+      0.0116385,
+      0.00173183,
+      0.02668311
+    ]
+  ],
+  "rattle_target": "Pb_I",
+  "rattle_sigma_A": 0.0935,
+  "minimum_distance_A": 0.9936415865128683,
+  "minimum_pair_indices": [
+    8,
+    28
+  ],
+  "minimum_pair_symbols": [
+    "N",
+    "H"
+  ],
+  "original_config_id": "O-FAPI3_parity_09",
+  "distortion_label": "strong_strain"
+}

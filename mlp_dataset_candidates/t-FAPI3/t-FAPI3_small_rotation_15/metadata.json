@@ -1,0 +1,79 @@
+{
+  "config_id": "t-FAPI3_small_rotation_15",
+  "phase": "t-FAPI3",
+  "mode": "small_rotation",
+  "seed": 3391165254,
+  "source": "t-FAPI3/CONTCAR",
+  "formula": "C2H10I6N4Pb2",
+  "natoms": 24,
+  "fa_groups": [
+    [
+      0,
+      2,
+      3,
+      6,
+      7,
+      10,
+      8,
+      9
+    ],
+    [
+      1,
+      4,
+      5,
+      11,
+      12,
+      15,
+      13,
+      14
+    ]
+  ],
+  "cell_A": [
+    [
+      8.9515839677,
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      8.9515839677,
+      0.0
+    ],
+    [
+      0.0,
+      0.0,
+      6.3289724258
+    ]
+  ],
+  "rotations": [
+    {
+      "fa_group": 0,
+      "kind": "axis_angle",
+      "angle_deg": -2.599427,
+      "axis": [
+        0.75354796,
+        -0.17219857,
+        0.63443922
+      ]
+    },
+    {
+      "fa_group": 1,
+      "kind": "axis_angle",
+      "angle_deg": -10.929495,
+      "axis": [
+        -0.7888202,
+        0.29104365,
+        -0.54134673
+      ]
+    }
+  ],
+  "minimum_distance_A": 1.0184004805038975,
+  "minimum_pair_indices": [
+    4,
+    12
+  ],
+  "minimum_pair_symbols": [
+    "N",
+    "H"
+  ]
+}

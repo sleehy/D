@@ -1,0 +1,107 @@
+{
+  "config_id": "t-FAPI3_parity_37__fa_rotation_cage_rattle__sev-0.7",
+  "phase": "t-FAPI3",
+  "mode": "parity",
+  "seed": 2609231216,
+  "source": "t-FAPI3/CONTCAR",
+  "formula": "C2H10I6N4Pb2",
+  "natoms": 24,
+  "fa_groups": [
+    [
+      0,
+      2,
+      3,
+      6,
+      7,
+      10,
+      8,
+      9
+    ],
+    [
+      1,
+      4,
+      5,
+      11,
+      12,
+      15,
+      13,
+      14
+    ]
+  ],
+  "cell_A": [
+    [
+      8.9515839677,
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      8.9515839677,
+      0.0
+    ],
+    [
+      0.0,
+      0.0,
+      6.3289724258
+    ]
+  ],
+  "distortion_family": "fa_rotation_cage_rattle",
+  "distortion_severity": 0.7,
+  "rotations": [
+    {
+      "fa_group": 0,
+      "kind": "uniform_SO3",
+      "matrix": [
+        [
+          0.37280665,
+          0.8935098,
+          -0.25031069
+        ],
+        [
+          0.01485715,
+          0.26397532,
+          0.964415
+        ],
+        [
+          0.9277901,
+          -0.36325923,
+          0.08513674
+        ]
+      ]
+    },
+    {
+      "fa_group": 1,
+      "kind": "uniform_SO3",
+      "matrix": [
+        [
+          0.98073921,
+          -0.12659368,
+          0.14874355
+        ],
+        [
+          0.06114374,
+          0.92223897,
+          0.38175481
+        ],
+        [
+          -0.18550484,
+          -0.36530717,
+          0.91221633
+        ]
+      ]
+    }
+  ],
+  "rattle_target": "Pb_I",
+  "rattle_sigma_A": 0.0875,
+  "minimum_distance_A": 1.018400480503897,
+  "minimum_pair_indices": [
+    4,
+    12
+  ],
+  "minimum_pair_symbols": [
+    "N",
+    "H"
+  ],
+  "original_config_id": "t-FAPI3_parity_37",
+  "distortion_label": "fa_rotation_cage_rattle"
+}

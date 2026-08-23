@@ -1,0 +1,43 @@
+{
+  "n_structures": 100,
+  "n_parity_seed_reused": 20,
+  "n_new_seed": 80,
+  "cohorts": [
+    {
+      "phase": "t-FAPI3",
+      "family": "global_rattle",
+      "count": 25,
+      "severity_range": [
+        0.2,
+        0.6
+      ]
+    },
+    {
+      "phase": "t-FAPI3",
+      "family": "combined",
+      "count": 25,
+      "severity_range": [
+        0.2,
+        0.6
+      ]
+    },
+    {
+      "phase": "O-FAPI3",
+      "family": "global_rattle",
+      "count": 30,
+      "severity_range": [
+        0.2,
+        0.6
+      ]
+    },
+    {
+      "phase": "O-FAPI3",
+      "family": "combined",
+      "count": 20,
+      "severity_range": [
+        0.4,
+        0.7
+      ]
+    }
+  ]
+}

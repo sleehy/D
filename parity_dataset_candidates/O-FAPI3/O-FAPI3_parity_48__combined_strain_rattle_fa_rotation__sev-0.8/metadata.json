@@ -1,0 +1,132 @@
+{
+  "config_id": "O-FAPI3_parity_48__combined_strain_rattle_fa_rotation__sev-0.8",
+  "phase": "O-FAPI3",
+  "mode": "parity",
+  "seed": 2894601973,
+  "source": "O-FAPI3/CONTCAR",
+  "formula": "C4H20I12N8Pb4",
+  "natoms": 48,
+  "fa_groups": [
+    [
+      0,
+      4,
+      8,
+      12,
+      16,
+      28,
+      20,
+      24
+    ],
+    [
+      1,
+      5,
+      9,
+      13,
+      17,
+      29,
+      21,
+      25
+    ],
+    [
+      2,
+      10,
+      6,
+      14,
+      30,
+      18,
+      26,
+      22
+    ],
+    [
+      3,
+      11,
+      7,
+      15,
+      31,
+      19,
+      27,
+      23
+    ]
+  ],
+  "cell_A": [
+    [
+      8.8156583445,
+      -0.1639059263,
+      0.0680778505
+    ],
+    [
+      -0.1595150193,
+      8.9963396307,
+      0.0310778203
+    ],
+    [
+      0.0965849013,
+      0.0453050936,
+      12.3996735832
+    ]
+  ],
+  "distortion_family": "combined",
+  "distortion_severity": 0.8,
+  "rotations": [
+    {
+      "fa_group": 0,
+      "kind": "axis_angle",
+      "angle_deg": 37.822166,
+      "axis": [
+        0.88494341,
+        -0.11187508,
+        -0.45206097
+      ]
+    },
+    {
+      "fa_group": 1,
+      "kind": "axis_angle",
+      "angle_deg": -22.934391,
+      "axis": [
+        -0.23035454,
+        0.79983714,
+        0.55425385
+      ]
+    },
+    {
+      "fa_group": 3,
+      "kind": "axis_angle",
+      "angle_deg": 27.897573,
+      "axis": [
+        0.31502643,
+        0.6965482,
+        0.64465414
+      ]
+    }
+  ],
+  "strain": [
+    [
+      -0.02258818,
+      -0.01817262,
+      0.00754794
+    ],
+    [
+      -0.01817262,
+      0.02490061,
+      0.00354052
+    ],
+    [
+      0.00754794,
+      0.00354052,
+      -0.03098683
+    ]
+  ],
+  "rattle_target": "all",
+  "rattle_sigma_A": 0.107,
+  "minimum_distance_A": 0.6933388264111288,
+  "minimum_pair_indices": [
+    7,
+    19
+  ],
+  "minimum_pair_symbols": [
+    "N",
+    "H"
+  ],
+  "original_config_id": "O-FAPI3_parity_48",
+  "distortion_label": "combined_strain_rattle_fa_rotation"
+}

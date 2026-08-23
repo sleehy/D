@@ -1,0 +1,63 @@
+{
+  "config_id": "t-FAPI3_parity_15__global_rattle__sev-0.5",
+  "phase": "t-FAPI3",
+  "mode": "parity",
+  "seed": 158256243,
+  "source": "t-FAPI3/CONTCAR",
+  "formula": "C2H10I6N4Pb2",
+  "natoms": 24,
+  "fa_groups": [
+    [
+      0,
+      2,
+      3,
+      6,
+      7,
+      10,
+      8,
+      9
+    ],
+    [
+      1,
+      4,
+      5,
+      11,
+      12,
+      15,
+      13,
+      14
+    ]
+  ],
+  "cell_A": [
+    [
+      8.9515839677,
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      8.9515839677,
+      0.0
+    ],
+    [
+      0.0,
+      0.0,
+      6.3289724258
+    ]
+  ],
+  "distortion_family": "global_rattle",
+  "distortion_severity": 0.5,
+  "rattle_target": "all",
+  "rattle_sigma_A": 0.10250000000000001,
+  "minimum_distance_A": 0.8246171872781697,
+  "minimum_pair_indices": [
+    5,
+    15
+  ],
+  "minimum_pair_symbols": [
+    "N",
+    "H"
+  ],
+  "original_config_id": "t-FAPI3_parity_15",
+  "distortion_label": "global_rattle"
+}

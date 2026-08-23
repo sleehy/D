@@ -1,0 +1,135 @@
+{
+  "config_id": "O-FAPI3_al_combined_01__combined_strain_rattle_fa_rotation__sev-0.407__seed-new",
+  "phase": "O-FAPI3",
+  "mode": "active_learning",
+  "seed": 1899588555,
+  "seed_origin": "new",
+  "seed_origin_config_id": "",
+  "parity_master_seed": null,
+  "new_master_seed": 20260901,
+  "source": "O-FAPI3/CONTCAR",
+  "formula": "C4H20I12N8Pb4",
+  "natoms": 48,
+  "fa_groups": [
+    [
+      0,
+      4,
+      8,
+      12,
+      16,
+      28,
+      20,
+      24
+    ],
+    [
+      1,
+      5,
+      9,
+      13,
+      17,
+      29,
+      21,
+      25
+    ],
+    [
+      2,
+      10,
+      6,
+      14,
+      30,
+      18,
+      26,
+      22
+    ],
+    [
+      3,
+      11,
+      7,
+      15,
+      31,
+      19,
+      27,
+      23
+    ]
+  ],
+  "cell_A": [
+    [
+      9.1218000684,
+      -0.0775195089,
+      -0.0071972239
+    ],
+    [
+      -0.0754428241,
+      8.7692860812,
+      -0.0140326961
+    ],
+    [
+      -0.0102110034,
+      -0.0204567954,
+      13.0134887504
+    ]
+  ],
+  "distortion_family": "combined",
+  "distortion_severity": 0.407,
+  "rotations": [
+    {
+      "fa_group": 0,
+      "kind": "axis_angle",
+      "angle_deg": 39.057314,
+      "axis": [
+        0.76036939,
+        -0.61425233,
+        -0.21102717
+      ]
+    },
+    {
+      "fa_group": 1,
+      "kind": "axis_angle",
+      "angle_deg": -39.508877,
+      "axis": [
+        -0.83190814,
+        0.20571966,
+        0.51537197
+      ]
+    },
+    {
+      "fa_group": 3,
+      "kind": "axis_angle",
+      "angle_deg": 29.439812,
+      "axis": [
+        0.16600622,
+        -0.97939571,
+        0.11500426
+      ]
+    }
+  ],
+  "strain": [
+    [
+      0.01135443,
+      -0.00859476,
+      -0.00079797
+    ],
+    [
+      -0.00859476,
+      -0.00096628,
+      -0.00159866
+    ],
+    [
+      -0.00079797,
+      -0.00159866,
+      0.01698177
+    ]
+  ],
+  "rattle_target": "all",
+  "rattle_sigma_A": 0.071675,
+  "distortion_label": "combined_strain_rattle_fa_rotation",
+  "minimum_distance_A": 0.8887063002929686,
+  "minimum_pair_indices": [
+    9,
+    25
+  ],
+  "minimum_pair_symbols": [
+    "N",
+    "H"
+  ]
+}
