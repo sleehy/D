@@ -47,6 +47,8 @@ nohup.out
 
 # Machine-learning checkpoints and cached graph datasets
 *.pth
+# Keep the model used as the project's fine-tuned reference checkpoint.
+!finetunesevenn/checkpoint_fine_tuned.pth
 *.pt
 finetunesevenn/sevenn_data/
 
