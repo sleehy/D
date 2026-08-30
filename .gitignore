@@ -23,6 +23,11 @@ Thumbs.db
 
 # VASP proprietary input and generated/restart files
 # POTCAR must not be redistributed: it is covered by the VASP license.
+POSCAR
+CONTCAR
+INCAR
+KPOINTS
+metadata.json
 POTCAR
 WAVECAR
 CHG
