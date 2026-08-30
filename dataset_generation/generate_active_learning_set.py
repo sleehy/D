@@ -27,10 +27,11 @@ from generate_parity_set import distortion_label, perturb
 
 
 COHORTS = (
-    ("t-FAPI3", "global_rattle", 25, 0.2, 0.6),
-    ("t-FAPI3", "combined", 25, 0.2, 0.6),
-    ("O-FAPI3", "global_rattle", 30, 0.2, 0.6),
-    ("O-FAPI3", "combined", 20, 0.4, 0.7),
+    ("t-FAPI3", "global_rattle", 10, 0.8, 1.1),
+    ("t-FAPI3", "combined", 10, 0.8, 1.1),
+    ("O-FAPI3", "global_rattle", 18, 0.5, 1.0),
+    ("O-FAPI3", "combined", 6, 0.8, 1.1),
+    ("O-FAPI3", "strong_strain", 6, 0.8, 1.1)
 )
 PARITY_MASTER_SEED = 20260810
 

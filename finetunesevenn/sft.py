@@ -347,19 +347,23 @@ def plot_metrics(history: list[dict[str, float]], path: Path) -> None:
     figure, axes = plt.subplots(3, 2, figsize=(13, 11), constrained_layout=True)
     marker_size = 2.5
     for axis, target in zip(axes.flat[:3], ERROR_TARGETS):
+        # SevenNet reports energy errors in eV; display them in meV so that
+        # the learning curve is easier to read without changing the CSV data.
+        scale = 1_000.0 if target == "Energy" else 1.0
+        ylabel = "RMSE / MAE (meV)" if target == "Energy" else "RMSE / MAE"
         for metric, style in (("RMSE", "-"), ("MAE", "--")):
             for split, color in (("train", "tab:blue"), ("valid", "tab:orange")):
                 key = f"{split}_{target}_{metric}"
                 axis.plot(
                     epochs,
-                    [row[key] for row in history],
+                    [scale * row[key] for row in history],
                     color=color,
                     linestyle=style,
                     marker="o",
                     markersize=marker_size,
                     label=f"{split.title()} {metric}",
                 )
-        axis.set(title=target, xlabel="epoch", ylabel="RMSE / MAE")
+        axis.set(title=target, xlabel="epoch", ylabel=ylabel)
         axis.grid(alpha=0.3)
         axis.legend(fontsize="small")
 

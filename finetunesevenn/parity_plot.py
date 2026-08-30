@@ -5,9 +5,12 @@ The script uses the final VASP frame in each candidate directory as the DFT
 reference, then writes a combined energy/force/stress parity plot and
 machine-readable per-frame and aggregate metrics.  It also writes the
 structures furthest from the y=x line, split into tetragonal/orthorhombic and
-energy/force CSV files.  For those structures, it also compares Pb-I, H-Pb,
-and H-I distances with the phase CONTCAR (index-matched Pb-I; minimum H-Pb
-and H-I contacts).
+energy/force/stress CSV files.  For the selected structures it compares the distorted
+structure with the DFT-relaxed phase CONTCAR: unit-cell edge lengths and the
+minimum H-Pb/H-I contacts.  It also writes every index-matched neighbouring
+Pb-I pair whose distorted/relaxed distance ratio differs sufficiently from 1,
+but only for the structures selected by the energy/force/stress outlier criteria.
+Every reported structural ratio is ``distorted / relaxed``.
 The reference and model stress values both follow ASE's stress convention.
 """
 
@@ -40,13 +43,30 @@ FORCE_OUTLIER_FIELDS = (
     "perpendicular_distance_eV_per_A", "structure_force_mae_eV_per_A",
     "structure_force_rmse_eV_per_A",
 )
-PAIR_DISTANCE_FIELDS = (
-    "config_id", "phase", "crystal_system", "family", "outlier_selection", "pair_type",
-    "distance_method", "contcar_atom_i_zero_based", "contcar_symbol_i",
-    "contcar_atom_j_zero_based", "contcar_symbol_j", "outlier_atom_i_zero_based",
-    "outlier_symbol_i", "outlier_atom_j_zero_based", "outlier_symbol_j",
-    "contcar_distance_A", "outlier_distance_A", "signed_distance_change_A",
-    "absolute_distance_change_A",
+STRESS_OUTLIER_FIELDS = (
+    "config_id", "phase", "crystal_system", "family", "severity", "natoms",
+    "voigt_component", "reference_stress_GPa", "prediction_stress_GPa",
+    "signed_residual_GPa", "absolute_residual_GPa", "perpendicular_distance_GPa",
+    "structure_stress_mae_GPa", "structure_stress_rmse_GPa",
+)
+STRUCTURE_RATIO_FIELDS = (
+    "config_id", "phase", "crystal_system", "family", "severity", "outlier_selection",
+    "absolute_energy_residual_meV_per_atom", "max_force_component_residual_eV_per_A",
+    "max_stress_component_residual_GPa",
+    "reference_cell_a_A", "reference_cell_b_A", "reference_cell_c_A",
+    "outlier_cell_a_A", "outlier_cell_b_A", "outlier_cell_c_A",
+    "cell_a_ratio_outlier_over_relaxed", "cell_b_ratio_outlier_over_relaxed",
+    "cell_c_ratio_outlier_over_relaxed",
+    "min_h_pb_relaxed_A", "min_h_pb_outlier_A", "min_h_pb_ratio_outlier_over_relaxed",
+    "min_h_i_relaxed_A", "min_h_i_outlier_A", "min_h_i_ratio_outlier_over_relaxed",
+)
+PB_I_RATIO_FIELDS = (
+    "config_id", "phase", "crystal_system", "family", "severity", "outlier_selection",
+    "absolute_energy_residual_meV_per_atom", "max_force_component_residual_eV_per_A",
+    "max_stress_component_residual_GPa",
+    "pb_atom_index_zero_based", "i_atom_index_zero_based",
+    "relaxed_pb_i_distance_A", "outlier_pb_i_distance_A",
+    "distance_ratio_outlier_over_relaxed", "absolute_ratio_deviation_from_1",
 )
 
 
@@ -70,7 +90,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--checkpoint",
         type=Path,
-        default=PROJECT_DIR / "checkpoint_fine_tuned.pth",
+        default=PROJECT_DIR / "checkpoint_fine_tuned_al_round1.pth",
         help="Fine-tuned SevenNet checkpoint.",
     )
     parser.add_argument(
@@ -82,7 +102,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output",
         type=Path,
-        default=PROJECT_DIR / "parity_results",
+        default=PROJECT_DIR / "parity_results2",
         help="Directory for plots and CSV output.",
     )
     parser.add_argument(
@@ -107,7 +127,7 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=10,
         help=(
-            "Number of highest-residual structures to write per crystal-system/property "
+            "Number of highest-residual entries to write per crystal-system/property "
             "when that property's threshold is not given (default: 10)."
         ),
     )
@@ -125,18 +145,46 @@ def parse_args() -> argparse.Namespace:
         type=float,
         default=None,
         help=(
-            "Write every structure whose largest absolute force-component residual from "
-            "y=x is at least this value. Overrides --outlier-top-n for force."
+            "Write every individual force component whose absolute residual from y=x "
+            "is at least this value. Overrides --outlier-top-n for force."
         ),
     )
     parser.add_argument(
-        "--pair-distance-cutoff-A",
+        "--stress-outlier-threshold-GPa",
+        type=float,
+        default=None,
+        help=(
+            "Write every individual Voigt stress component whose absolute residual "
+            "from y=x is at least this value. Overrides --outlier-top-n for stress."
+        ),
+    )
+    parser.add_argument(
+        "--outlier-selection",
+        choices=("any", "both", "all"),
+        default="any",
+        help=(
+            "Select structures exceeding any energy/force/stress criterion (any), "
+            "both energy and force criteria (both), or all three criteria (all; "
+            "default: any). When thresholds are omitted, the corresponding top-N "
+            "selection is used."
+        ),
+    )
+    parser.add_argument(
+        "--pb-i-reference-cutoff-A",
         type=float,
         default=5.0,
         help=(
-            "Only compare index-matched Pb-I pairs no farther apart than this in the "
-            "phase CONTCAR (default: 5.0 A). H-Pb and H-I always use their minimum "
-            "distance in each structure."
+            "Treat Pb-I pairs no farther apart than this in the relaxed CONTCAR "
+            "as neighbouring pairs (default: 5.0 A)."
+        ),
+    )
+    parser.add_argument(
+        "--pb-i-ratio-deviation-threshold",
+        type=float,
+        default=0.05,
+        help=(
+            "Write an index-matched Pb-I pair only when "
+            "abs(distorted/relaxed - 1) is at least this value (default: 0.05)."
         ),
     )
     return parser.parse_args()
@@ -319,30 +367,62 @@ def energy_outlier_row(item: FrameResult) -> dict[str, object]:
     }
 
 
-def force_outlier_row(item: FrameResult) -> dict[str, object]:
-    """Summarise the force-parity point furthest from y=x for one structure."""
+def force_outlier_rows(item: FrameResult) -> list[dict[str, object]]:
+    """Return one outlier-candidate row for every atom and Cartesian component."""
     residual = item.force_pred_eV_per_A - item.force_ref_eV_per_A
     absolute_residual = np.abs(residual)
-    atom_index, component_index = np.unravel_index(np.argmax(absolute_residual), residual.shape)
-    component = ("x", "y", "z")[component_index]
-    max_residual = float(absolute_residual[atom_index, component_index])
-    return {
-        "config_id": item.config_id,
-        "phase": item.phase,
-        "crystal_system": crystal_system(item.phase),
-        "family": item.family,
-        "severity": item.severity,
-        "natoms": item.natoms,
-        "atom_index_zero_based": int(atom_index),
-        "cartesian_component": component,
-        "reference_force_eV_per_A": float(item.force_ref_eV_per_A[atom_index, component_index]),
-        "prediction_force_eV_per_A": float(item.force_pred_eV_per_A[atom_index, component_index]),
-        "signed_residual_eV_per_A": float(residual[atom_index, component_index]),
-        "absolute_residual_eV_per_A": max_residual,
-        "perpendicular_distance_eV_per_A": max_residual / np.sqrt(2),
-        "structure_force_mae_eV_per_A": float(np.mean(absolute_residual)),
-        "structure_force_rmse_eV_per_A": float(np.sqrt(np.mean(residual**2))),
-    }
+    structure_force_mae = float(np.mean(absolute_residual))
+    structure_force_rmse = float(np.sqrt(np.mean(residual**2)))
+    rows: list[dict[str, object]] = []
+    for atom_index, component_index in np.ndindex(residual.shape):
+        component_residual = float(residual[atom_index, component_index])
+        absolute_component_residual = float(absolute_residual[atom_index, component_index])
+        rows.append({
+            "config_id": item.config_id,
+            "phase": item.phase,
+            "crystal_system": crystal_system(item.phase),
+            "family": item.family,
+            "severity": item.severity,
+            "natoms": item.natoms,
+            "atom_index_zero_based": int(atom_index),
+            "cartesian_component": ("x", "y", "z")[component_index],
+            "reference_force_eV_per_A": float(item.force_ref_eV_per_A[atom_index, component_index]),
+            "prediction_force_eV_per_A": float(item.force_pred_eV_per_A[atom_index, component_index]),
+            "signed_residual_eV_per_A": component_residual,
+            "absolute_residual_eV_per_A": absolute_component_residual,
+            "perpendicular_distance_eV_per_A": absolute_component_residual / np.sqrt(2),
+            "structure_force_mae_eV_per_A": structure_force_mae,
+            "structure_force_rmse_eV_per_A": structure_force_rmse,
+        })
+    return rows
+
+
+def stress_outlier_rows(item: FrameResult) -> list[dict[str, object]]:
+    """Return one outlier-candidate row for each independent Voigt component."""
+    residual = item.stress_pred_GPa - item.stress_ref_GPa
+    absolute_residual = np.abs(residual)
+    structure_stress_mae = float(np.mean(absolute_residual))
+    structure_stress_rmse = float(np.sqrt(np.mean(residual**2)))
+    component_names = ("xx", "yy", "zz", "yz", "xz", "xy")
+    return [
+        {
+            "config_id": item.config_id,
+            "phase": item.phase,
+            "crystal_system": crystal_system(item.phase),
+            "family": item.family,
+            "severity": item.severity,
+            "natoms": item.natoms,
+            "voigt_component": component_names[component_index],
+            "reference_stress_GPa": float(item.stress_ref_GPa[component_index]),
+            "prediction_stress_GPa": float(item.stress_pred_GPa[component_index]),
+            "signed_residual_GPa": float(residual[component_index]),
+            "absolute_residual_GPa": float(absolute_residual[component_index]),
+            "perpendicular_distance_GPa": float(absolute_residual[component_index] / np.sqrt(2)),
+            "structure_stress_mae_GPa": structure_stress_mae,
+            "structure_stress_rmse_GPa": structure_stress_rmse,
+        }
+        for component_index in range(6)
+    ]
 
 
 def select_outliers(
@@ -361,32 +441,39 @@ def select_outliers(
 def write_outlier_csvs(
     results: list[FrameResult], output_dir: Path, *, top_n: int,
     energy_threshold_meV_per_atom: float | None, force_threshold_eV_per_A: float | None,
+    stress_threshold_GPa: float | None,
 ) -> tuple[dict[str, dict[str, object]], dict[str, list[dict[str, object]]]]:
-    """Write tetragonal/orthorhombic energy/force outlier tables and a summary."""
+    """Write tetragonal/orthorhombic energy, force, and stress outlier tables."""
     if top_n < 1:
         raise ValueError("--outlier-top-n must be at least 1")
     if energy_threshold_meV_per_atom is not None and energy_threshold_meV_per_atom < 0:
         raise ValueError("--energy-outlier-threshold-meV-per-atom must be non-negative")
     if force_threshold_eV_per_A is not None and force_threshold_eV_per_A < 0:
         raise ValueError("--force-outlier-threshold-eV-per-A must be non-negative")
+    if stress_threshold_GPa is not None and stress_threshold_GPa < 0:
+        raise ValueError("--stress-outlier-threshold-GPa must be non-negative")
 
     specifications = (
-        (
-            "energy", energy_outlier_row, "absolute_residual_meV_per_atom",
-            energy_threshold_meV_per_atom, ENERGY_OUTLIER_FIELDS,
-        ),
-        (
-            "force", force_outlier_row, "absolute_residual_eV_per_A",
-            force_threshold_eV_per_A, FORCE_OUTLIER_FIELDS,
-        ),
+        ("energy", "absolute_residual_meV_per_atom", energy_threshold_meV_per_atom, ENERGY_OUTLIER_FIELDS),
+        ("force", "absolute_residual_eV_per_A", force_threshold_eV_per_A, FORCE_OUTLIER_FIELDS),
+        ("stress", "absolute_residual_GPa", stress_threshold_GPa, STRESS_OUTLIER_FIELDS),
     )
     summary: dict[str, dict[str, object]] = {}
     selections: dict[str, list[dict[str, object]]] = {}
     for system in ("tetragonal", "orthorhombic"):
         phase_results = [item for item in results if crystal_system(item.phase) == system]
-        for property_name, row_builder, metric, threshold, fieldnames in specifications:
+        for property_name, metric, threshold, fieldnames in specifications:
+            candidate_rows = (
+                [energy_outlier_row(item) for item in phase_results]
+                if property_name == "energy"
+                else (
+                    [row for item in phase_results for row in force_outlier_rows(item)]
+                    if property_name == "force"
+                    else [row for item in phase_results for row in stress_outlier_rows(item)]
+                )
+            )
             selected = select_outliers(
-                [row_builder(item) for item in phase_results],
+                candidate_rows,
                 metric=metric,
                 threshold=threshold,
                 top_n=top_n,
@@ -409,135 +496,278 @@ def write_outlier_csvs(
     return summary, selections
 
 
-def pair_distance_rows(
-    selections: dict[str, list[dict[str, object]]], input_dir: Path, reference_root: Path,
-    crystal_system_name: str, cutoff_A: float,
-) -> list[dict[str, object]]:
-    """Compare Pb-I by index, and H-Pb/H-I by each structure's closest pair."""
-    if cutoff_A <= 0:
-        raise ValueError("--pair-distance-cutoff-A must be positive")
+def selected_outlier_configs(
+    selections: dict[str, list[dict[str, object]]], crystal_system_name: str,
+    selection_mode: str,
+) -> dict[str, dict[str, object]]:
+    """Combine energy/force/stress selections into unique structures for geometry analysis."""
+    if selection_mode not in {"any", "both", "all"}:
+        raise ValueError(f"Unknown outlier selection mode: {selection_mode}")
 
-    selected_configs: dict[str, dict[str, object]] = {}
-    for property_name in ("energy", "force"):
+    selected: dict[str, dict[str, object]] = {}
+    for property_name in ("energy", "force", "stress"):
         for row in selections[f"{crystal_system_name}_{property_name}"]:
             config_id = str(row["config_id"])
-            details = selected_configs.setdefault(
-                config_id, {"selected_for": set(), "family": str(row["family"])},
+            details = selected.setdefault(
+                config_id,
+                {
+                    "selected_for": set(),
+                    "phase": str(row["phase"]),
+                    "family": str(row["family"]),
+                    "severity": float(row["severity"]),
+                    "energy_row": None,
+                    "force_rows": [],
+                    "stress_rows": [],
+                },
             )
-            if details["family"] != str(row["family"]):
-                raise ValueError(f"Inconsistent distortion family for {config_id}")
+            if (
+                details["phase"] != str(row["phase"])
+                or details["family"] != str(row["family"])
+                or details["severity"] != float(row["severity"])
+            ):
+                raise ValueError(f"Inconsistent outlier metadata for {config_id}")
             details["selected_for"].add(property_name)
+            if property_name == "energy":
+                details["energy_row"] = row
+            elif property_name == "force":
+                details["force_rows"].append(row)
+            else:
+                details["stress_rows"].append(row)
+
+    if selection_mode == "both":
+        return {
+            config_id: details
+            for config_id, details in selected.items()
+            if {"energy", "force"}.issubset(details["selected_for"])
+        }
+    if selection_mode == "all":
+        return {
+            config_id: details
+            for config_id, details in selected.items()
+            if details["selected_for"] == {"energy", "force", "stress"}
+        }
+    return selected
+
+
+def outlier_selection_label(selected_for: set[str]) -> str:
+    """Use a stable label for the property criteria that selected a structure."""
+    return "+".join(property_name for property_name in ("energy", "force", "stress") if property_name in selected_for)
+
+
+def closest_pair(atoms, first_symbol: str, second_symbol: str) -> tuple[float, int, int]:
+    """Return the closest minimum-image pair and its zero-based atom indices."""
+    first_indices = [index for index, symbol in enumerate(atoms.symbols) if symbol == first_symbol]
+    second_indices = [index for index, symbol in enumerate(atoms.symbols) if symbol == second_symbol]
+    if not first_indices or not second_indices:
+        raise ValueError(f"Structure does not contain both {first_symbol} and {second_symbol}")
+    return min(
+        (float(atoms.get_distance(i, j, mic=True)), i, j)
+        for i in first_indices for j in second_indices
+    )
+
+
+def neighbouring_pb_i_pairs(atoms, cutoff_A: float) -> list[tuple[float, int, int]]:
+    """Return every Pb-I pair within the relaxed-structure neighbour cutoff."""
+    if cutoff_A <= 0:
+        raise ValueError("--pb-i-reference-cutoff-A must be positive")
+    symbols = atoms.get_chemical_symbols()
+    return [
+        (distance, pb_index, i_index)
+        for pb_index, symbol in enumerate(symbols)
+        if symbol == "Pb"
+        for i_index, i_symbol in enumerate(symbols)
+        if i_symbol == "I"
+        for distance in (float(atoms.get_distance(pb_index, i_index, mic=True)),)
+        if distance <= cutoff_A
+    ]
+
+
+def structure_ratio_rows(
+    selections: dict[str, list[dict[str, object]]], input_dir: Path, reference_root: Path,
+    crystal_system_name: str, selection_mode: str,
+) -> list[dict[str, object]]:
+    """Summarise distorted-to-relaxed structural ratios once per selected structure."""
+    selected_configs = selected_outlier_configs(
+        selections, crystal_system_name, selection_mode
+    )
     if not selected_configs:
         return []
 
-    phase = next(
-        str(row["phase"])
-        for property_name in ("energy", "force")
-        for row in selections[f"{crystal_system_name}_{property_name}"]
-    )
+    phases = {str(details["phase"]) for details in selected_configs.values()}
+    if len(phases) != 1:
+        raise ValueError(f"Expected one phase for {crystal_system_name}, found {phases}")
+    phase = phases.pop()
     contcar_path = reference_root / phase / "CONTCAR"
     if not contcar_path.is_file():
         raise FileNotFoundError(f"Phase reference CONTCAR not found: {contcar_path}")
-    reference_atoms = read(contcar_path)
-    reference_symbols = reference_atoms.get_chemical_symbols()
-
-    def closest_pair(atoms, first_symbol: str, second_symbol: str) -> tuple[float, int, int]:
-        """Return the minimum-image closest pair, retaining the atom indices found."""
-        first_indices = [index for index, symbol in enumerate(atoms.symbols) if symbol == first_symbol]
-        second_indices = [index for index, symbol in enumerate(atoms.symbols) if symbol == second_symbol]
-        if not first_indices or not second_indices:
-            raise ValueError(f"Structure does not contain both {first_symbol} and {second_symbol}")
-        return min(
-            (float(atoms.get_distance(i, j, mic=True)), i, j)
-            for i in first_indices for j in second_indices
-        )
-
-    closest_reference_pairs = {
-        "H-Pb": closest_pair(reference_atoms, "H", "Pb"),
-        "H-I": closest_pair(reference_atoms, "H", "I"),
-    }
+    relaxed_atoms = read(contcar_path)
+    relaxed_symbols = relaxed_atoms.get_chemical_symbols()
+    relaxed_cell_edges = np.linalg.norm(relaxed_atoms.cell.array, axis=1)
+    if np.any(relaxed_cell_edges <= 0):
+        raise ValueError(f"Relaxed reference has a zero-length cell edge: {contcar_path}")
+    relaxed_h_pb = closest_pair(relaxed_atoms, "H", "Pb")[0]
+    relaxed_h_i = closest_pair(relaxed_atoms, "H", "I")[0]
 
     rows: list[dict[str, object]] = []
     for config_id, details in sorted(selected_configs.items()):
-        selected_for = details["selected_for"]
-        family = str(details["family"])
         outlier_path = input_dir / phase / config_id / "vasprun.xml"
         if not outlier_path.is_file():
             raise FileNotFoundError(f"Outlier structure vasprun.xml not found: {outlier_path}")
         outlier_atoms = read(outlier_path, index=-1)
-        outlier_symbols = outlier_atoms.get_chemical_symbols()
-        if outlier_symbols != reference_symbols:
+        if outlier_atoms.get_chemical_symbols() != relaxed_symbols:
             raise ValueError(
                 f"Atom order/species differ between {contcar_path} and {outlier_path}; "
-                "cannot make an index-matched comparison."
+                "cannot make index-matched Pb-I comparisons."
             )
-        selection_label = "both" if len(selected_for) == 2 else next(iter(selected_for))
-        def append_row(
-            pair_type: str, distance_method: str,
-            reference_pair: tuple[float, int, int], outlier_pair: tuple[float, int, int],
-        ) -> None:
-            reference_distance, reference_i, reference_j = reference_pair
-            outlier_distance, outlier_i, outlier_j = outlier_pair
-            distance_change = outlier_distance - reference_distance
+        outlier_cell_edges = np.linalg.norm(outlier_atoms.cell.array, axis=1)
+        outlier_h_pb = closest_pair(outlier_atoms, "H", "Pb")[0]
+        outlier_h_i = closest_pair(outlier_atoms, "H", "I")[0]
+        selected_for = details["selected_for"]
+        selection_label = outlier_selection_label(selected_for)
+        energy_row = details["energy_row"]
+        force_rows = details["force_rows"]
+        stress_rows = details["stress_rows"]
+        rows.append({
+            "config_id": config_id,
+            "phase": phase,
+            "crystal_system": crystal_system_name,
+            "family": details["family"],
+            "severity": details["severity"],
+            "outlier_selection": selection_label,
+            "absolute_energy_residual_meV_per_atom": (
+                energy_row["absolute_residual_meV_per_atom"] if energy_row else ""
+            ),
+            "max_force_component_residual_eV_per_A": (
+                max(float(row["absolute_residual_eV_per_A"]) for row in force_rows)
+                if force_rows else ""
+            ),
+            "max_stress_component_residual_GPa": (
+                max(float(row["absolute_residual_GPa"]) for row in stress_rows)
+                if stress_rows else ""
+            ),
+            "reference_cell_a_A": relaxed_cell_edges[0],
+            "reference_cell_b_A": relaxed_cell_edges[1],
+            "reference_cell_c_A": relaxed_cell_edges[2],
+            "outlier_cell_a_A": outlier_cell_edges[0],
+            "outlier_cell_b_A": outlier_cell_edges[1],
+            "outlier_cell_c_A": outlier_cell_edges[2],
+            "cell_a_ratio_outlier_over_relaxed": outlier_cell_edges[0] / relaxed_cell_edges[0],
+            "cell_b_ratio_outlier_over_relaxed": outlier_cell_edges[1] / relaxed_cell_edges[1],
+            "cell_c_ratio_outlier_over_relaxed": outlier_cell_edges[2] / relaxed_cell_edges[2],
+            "min_h_pb_relaxed_A": relaxed_h_pb,
+            "min_h_pb_outlier_A": outlier_h_pb,
+            "min_h_pb_ratio_outlier_over_relaxed": outlier_h_pb / relaxed_h_pb,
+            "min_h_i_relaxed_A": relaxed_h_i,
+            "min_h_i_outlier_A": outlier_h_i,
+            "min_h_i_ratio_outlier_over_relaxed": outlier_h_i / relaxed_h_i,
+        })
+    return rows
+
+
+def write_structure_ratio_comparison(
+    rows: list[dict[str, object]], crystal_system_name: str, output_dir: Path,
+) -> str:
+    """Write one compact distorted/relaxed structural-ratio record per outlier."""
+    filename = f"outlier_structure_ratios_{crystal_system_name}.csv"
+    with (output_dir / filename).open("w", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=STRUCTURE_RATIO_FIELDS)
+        writer.writeheader()
+        writer.writerows(rows)
+    return filename
+
+
+def pb_i_ratio_outlier_rows(
+    selections: dict[str, list[dict[str, object]]], input_dir: Path, reference_root: Path,
+    crystal_system_name: str, selection_mode: str, cutoff_A: float,
+    ratio_deviation_threshold: float,
+) -> list[dict[str, object]]:
+    """Return anomalous Pb-I ratios only from energy/force/stress-selected structures."""
+    if ratio_deviation_threshold < 0:
+        raise ValueError("--pb-i-ratio-deviation-threshold must be non-negative")
+    selected_configs = selected_outlier_configs(
+        selections, crystal_system_name, selection_mode
+    )
+    if not selected_configs:
+        return []
+
+    phases = {str(details["phase"]) for details in selected_configs.values()}
+    if len(phases) != 1:
+        raise ValueError(f"Expected one phase for {crystal_system_name}, found {phases}")
+    phase = phases.pop()
+    contcar_path = reference_root / phase / "CONTCAR"
+    if not contcar_path.is_file():
+        raise FileNotFoundError(f"Phase reference CONTCAR not found: {contcar_path}")
+    relaxed_atoms = read(contcar_path)
+    relaxed_symbols = relaxed_atoms.get_chemical_symbols()
+    relaxed_pairs = neighbouring_pb_i_pairs(relaxed_atoms, cutoff_A)
+    if not relaxed_pairs:
+        raise ValueError(f"No neighbouring Pb-I pairs found in {contcar_path}")
+    tolerance = max(1.0e-12, ratio_deviation_threshold * 1.0e-12)
+
+    rows: list[dict[str, object]] = []
+    for config_id, details in sorted(selected_configs.items()):
+        outlier_path = input_dir / phase / config_id / "vasprun.xml"
+        if not outlier_path.is_file():
+            raise FileNotFoundError(f"Outlier structure vasprun.xml not found: {outlier_path}")
+        outlier_atoms = read(outlier_path, index=-1)
+        if outlier_atoms.get_chemical_symbols() != relaxed_symbols:
+            raise ValueError(
+                f"Atom order/species differ between {contcar_path} and {outlier_path}; "
+                "cannot make index-matched Pb-I comparisons."
+            )
+        selected_for = details["selected_for"]
+        selection_label = outlier_selection_label(selected_for)
+        energy_row = details["energy_row"]
+        force_rows = details["force_rows"]
+        stress_rows = details["stress_rows"]
+        for relaxed_distance, pb_index, i_index in relaxed_pairs:
+            outlier_distance = float(outlier_atoms.get_distance(pb_index, i_index, mic=True))
+            ratio = outlier_distance / relaxed_distance
+            deviation = abs(ratio - 1.0)
+            if deviation < ratio_deviation_threshold - tolerance:
+                continue
             rows.append({
                 "config_id": config_id,
                 "phase": phase,
                 "crystal_system": crystal_system_name,
-                "family": family,
+                "family": details["family"],
+                "severity": details["severity"],
                 "outlier_selection": selection_label,
-                "pair_type": pair_type,
-                "distance_method": distance_method,
-                "contcar_atom_i_zero_based": reference_i,
-                "contcar_symbol_i": reference_symbols[reference_i],
-                "contcar_atom_j_zero_based": reference_j,
-                "contcar_symbol_j": reference_symbols[reference_j],
-                "outlier_atom_i_zero_based": outlier_i,
-                "outlier_symbol_i": outlier_symbols[outlier_i],
-                "outlier_atom_j_zero_based": outlier_j,
-                "outlier_symbol_j": outlier_symbols[outlier_j],
-                "contcar_distance_A": reference_distance,
-                "outlier_distance_A": outlier_distance,
-                "signed_distance_change_A": distance_change,
-                "absolute_distance_change_A": abs(distance_change),
+                "absolute_energy_residual_meV_per_atom": (
+                    energy_row["absolute_residual_meV_per_atom"] if energy_row else ""
+                ),
+                "max_force_component_residual_eV_per_A": (
+                    max(float(row["absolute_residual_eV_per_A"]) for row in force_rows)
+                    if force_rows else ""
+                ),
+                "max_stress_component_residual_GPa": (
+                    max(float(row["absolute_residual_GPa"]) for row in stress_rows)
+                    if stress_rows else ""
+                ),
+                "pb_atom_index_zero_based": pb_index,
+                "i_atom_index_zero_based": i_index,
+                "relaxed_pb_i_distance_A": relaxed_distance,
+                "outlier_pb_i_distance_A": outlier_distance,
+                "distance_ratio_outlier_over_relaxed": ratio,
+                "absolute_ratio_deviation_from_1": deviation,
             })
-
-        # Inorganic Pb-I cage atoms retain their atom correspondence, so use
-        # each original Pb-I pair (within the local-reference cutoff).
-        for i, symbol_i in enumerate(reference_symbols):
-            if symbol_i != "Pb":
-                continue
-            for j, symbol_j in enumerate(reference_symbols):
-                if symbol_j != "I":
-                    continue
-                reference_pair = (float(reference_atoms.get_distance(i, j, mic=True)), i, j)
-                if reference_pair[0] <= cutoff_A:
-                    outlier_pair = (float(outlier_atoms.get_distance(i, j, mic=True)), i, j)
-                    append_row("Pb-I", "index_matched", reference_pair, outlier_pair)
-
-        # FA rotations make H indices non-corresponding.  Use the closest
-        # H-Pb/H-I contact separately in the CONTCAR and outlier structures.
-        for pair_type, first_symbol, second_symbol in (("H-Pb", "H", "Pb"), ("H-I", "H", "I")):
-            append_row(
-                pair_type,
-                "minimum_pair",
-                closest_reference_pairs[pair_type],
-                closest_pair(outlier_atoms, first_symbol, second_symbol),
-            )
     return rows
 
 
-def write_pair_distance_comparison(
+def write_pb_i_ratio_outliers(
     rows: list[dict[str, object]], crystal_system_name: str, output_dir: Path,
-) -> str | None:
-    """Write pair-distance data and a three-panel CONTCAR-vs-outlier plot."""
-    csv_filename = f"outlier_pair_distances_{crystal_system_name}.csv"
-    with (output_dir / csv_filename).open("w", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=PAIR_DISTANCE_FIELDS)
+) -> str:
+    """Write Pb-I ratio deviations from structures selected by any parity error."""
+    filename = f"property_outlier_pb_i_ratios_{crystal_system_name}.csv"
+    with (output_dir / filename).open("w", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=PB_I_RATIO_FIELDS)
         writer.writeheader()
         writer.writerows(rows)
-    if not rows:
-        return None
+    return filename
 
+
+def prepare_matplotlib(output_dir: Path):
+    """Import a non-interactive Matplotlib backend with a writable cache directory."""
     plot_cache = output_dir / ".matplotlib"
     plot_cache.mkdir(exist_ok=True)
     os.environ.setdefault("MPLCONFIGDIR", str(plot_cache))
@@ -545,88 +775,68 @@ def write_pair_distance_comparison(
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
+    return plt
 
-    figure, axes = plt.subplots(1, 3, figsize=(15, 5), constrained_layout=True)
-    family_colors = {
-        "strong_strain": "tab:red",
-        "global_rattle": "tab:orange",
-        "cage_rattle": "tab:green",
-        "fa_rotation_cage_rattle": "tab:purple",
-        "combined": "tab:brown",
-    }
-    for axis, pair_type in zip(axes, ("Pb-I", "H-Pb", "H-I")):
-        pair_rows = [row for row in rows if row["pair_type"] == pair_type]
-        values = np.array([
-            value
-            for row in pair_rows
-            for value in (row["contcar_distance_A"], row["outlier_distance_A"])
-        ])
-        lower, upper = float(values.min()), float(values.max())
-        pad = max((upper - lower) * 0.05, 0.05)
-        lower, upper = lower - pad, upper + pad
-        axis.plot((lower, upper), (lower, upper), "k--", linewidth=1, label="y = x")
-        for family, color in family_colors.items():
-            selected_rows = [row for row in pair_rows if row["family"] == family]
-            if selected_rows:
-                axis.scatter(
-                    [row["contcar_distance_A"] for row in selected_rows],
-                    [row["outlier_distance_A"] for row in selected_rows],
-                    s=13, alpha=0.50, color=color, label=family, rasterized=True,
-                )
-        axis.set(
-            xlim=(lower, upper), ylim=(lower, upper), title=f"{pair_type} ({len(pair_rows)} pairs)",
-            xlabel="Phase CONTCAR distance (A)", ylabel="Outlier structure distance (A)",
-        )
-        axis.set_aspect("equal", adjustable="box")
-        axis.grid(alpha=0.25)
-        axis.legend(fontsize="small", loc="upper left")
-    figure.suptitle(f"{crystal_system_name.capitalize()}: CONTCAR vs outlier pair distances")
-    plot_filename = f"outlier_pair_distance_comparison_{crystal_system_name}.png"
-    figure.savefig(output_dir / plot_filename, dpi=220)
-    plt.close(figure)
-    return plot_filename
+
+def draw_parity_axis(axis, *, phase: str, title: str, unit: str,
+                     reference: np.ndarray, prediction: np.ndarray) -> None:
+    """Draw one component-resolved DFT-versus-MLP parity panel."""
+    lower, upper = min(reference.min(), prediction.min()), max(reference.max(), prediction.max())
+    pad = max((upper - lower) * 0.05, 1.0e-6)
+    lower, upper = lower - pad, upper + pad
+    axis.plot((lower, upper), (lower, upper), "k--", linewidth=1, label="y = x")
+    axis.scatter(reference, prediction, s=13, alpha=0.55, color="tab:blue", label=phase, rasterized=True)
+    metrics = compute_metrics(reference, prediction)
+    axis.text(
+        0.04, 0.96,
+        f"MAE = {metrics['mae']:.3g}\nRMSE = {metrics['rmse']:.3g}\nR² = {metrics['r2']:.4f}",
+        transform=axis.transAxes, va="top", fontsize="small",
+        bbox={"facecolor": "white", "alpha": 0.85, "edgecolor": "none"},
+    )
+    axis.set(
+        xlim=(lower, upper), ylim=(lower, upper), title=f"{phase}: {title}",
+        xlabel=f"DFT {title.lower()} ({unit})", ylabel=f"MLP {title.lower()} ({unit})",
+    )
+    axis.set_aspect("equal", adjustable="box")
+    axis.grid(alpha=0.25)
+    axis.legend(fontsize="small", loc="lower right")
 
 
 def plot_parity(results: list[FrameResult], phase: str, path: Path) -> None:
-    # Some shared compute environments have a read-only home directory.  Keep
-    # Matplotlib's cache beside the explicitly requested output files instead.
-    plot_cache = path.parent / ".matplotlib"
-    plot_cache.mkdir(exist_ok=True)
-    os.environ.setdefault("MPLCONFIGDIR", str(plot_cache))
-    import matplotlib
-
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-
-    targets = (
-        ("Energy / atom", "DFT energy (eV/atom)", "MLP energy (eV/atom)",
-         np.array([item.energy_ref_eV_per_atom for item in results]),
-         np.array([item.energy_pred_eV_per_atom for item in results])),
-        ("Force components", "DFT force (eV/A)", "MLP force (eV/A)",
-         np.concatenate([item.force_ref_eV_per_A.reshape(-1) for item in results]),
-         np.concatenate([item.force_pred_eV_per_A.reshape(-1) for item in results])),
-        ("Stress (Voigt)", "DFT stress (GPa)", "MLP stress (GPa)",
-         np.concatenate([item.stress_ref_GPa for item in results]),
-         np.concatenate([item.stress_pred_GPa for item in results])),
+    """Write energy plus x/y/z-resolved force parity panels."""
+    plt = prepare_matplotlib(path.parent)
+    figure, axes = plt.subplots(2, 2, figsize=(11, 10), constrained_layout=True)
+    draw_parity_axis(
+        axes[0, 0], phase=phase, title="Energy / atom", unit="eV/atom",
+        reference=np.array([item.energy_ref_eV_per_atom for item in results]),
+        prediction=np.array([item.energy_pred_eV_per_atom for item in results]),
     )
-    figure, axes = plt.subplots(1, 3, figsize=(16, 5), constrained_layout=True)
-    for axis, (title, xlabel, ylabel, reference, prediction) in zip(axes, targets):
-        lower, upper = min(reference.min(), prediction.min()), max(reference.max(), prediction.max())
-        pad = max((upper - lower) * 0.05, 1.0e-6)
-        lower, upper = lower - pad, upper + pad
-        axis.plot((lower, upper), (lower, upper), "k--", linewidth=1, label="y = x")
-        axis.scatter(reference, prediction, s=13, alpha=0.55, color="tab:blue", label=phase, rasterized=True)
-        metrics = compute_metrics(reference, prediction)
-        axis.text(
-            0.04, 0.96,
-            f"MAE = {metrics['mae']:.3g}\nRMSE = {metrics['rmse']:.3g}\nR² = {metrics['r2']:.4f}",
-            transform=axis.transAxes, va="top", fontsize="small",
-            bbox={"facecolor": "white", "alpha": 0.85, "edgecolor": "none"},
+    for component_index, component_name in enumerate(("x", "y", "z")):
+        draw_parity_axis(
+            axes.flat[component_index + 1], phase=phase,
+            title=f"Force {component_name}", unit="eV/A",
+            reference=np.concatenate([
+                item.force_ref_eV_per_A[:, component_index] for item in results
+            ]),
+            prediction=np.concatenate([
+                item.force_pred_eV_per_A[:, component_index] for item in results
+            ]),
         )
-        axis.set(xlim=(lower, upper), ylim=(lower, upper), title=f"{phase}: {title}", xlabel=xlabel, ylabel=ylabel)
-        axis.set_aspect("equal", adjustable="box")
-        axis.grid(alpha=0.25)
-        axis.legend(fontsize="small", loc="lower right")
+    figure.savefig(path, dpi=220)
+    plt.close(figure)
+
+
+def plot_stress_parity(results: list[FrameResult], phase: str, path: Path) -> None:
+    """Write six Voigt-component-resolved stress parity panels."""
+    plt = prepare_matplotlib(path.parent)
+    figure, axes = plt.subplots(2, 3, figsize=(15, 10), constrained_layout=True)
+    for component_index, component_name in enumerate(("xx", "yy", "zz", "yz", "xz", "xy")):
+        draw_parity_axis(
+            axes.flat[component_index], phase=phase,
+            title=f"Stress {component_name}", unit="GPa",
+            reference=np.array([item.stress_ref_GPa[component_index] for item in results]),
+            prediction=np.array([item.stress_pred_GPa[component_index] for item in results]),
+        )
     figure.savefig(path, dpi=220)
     plt.close(figure)
 
@@ -672,21 +882,42 @@ def main() -> None:
         top_n=args.outlier_top_n,
         energy_threshold_meV_per_atom=args.energy_outlier_threshold_meV_per_atom,
         force_threshold_eV_per_A=args.force_outlier_threshold_eV_per_A,
+        stress_threshold_GPa=args.stress_outlier_threshold_GPa,
     )
     for system in ("tetragonal", "orthorhombic"):
-        distance_rows = pair_distance_rows(
+        ratio_rows = structure_ratio_rows(
             outlier_selections,
             args.input,
             ROOT,
             system,
-            args.pair_distance_cutoff_A,
+            args.outlier_selection,
         )
-        plot_filename = write_pair_distance_comparison(distance_rows, system, args.output)
-        outlier_summary[f"{system}_pair_distances"] = {
-            "file": f"outlier_pair_distances_{system}.csv",
-            "plot": plot_filename,
-            "n_pairs": len(distance_rows),
-            "reference_distance_cutoff_A": args.pair_distance_cutoff_A,
+        ratio_filename = write_structure_ratio_comparison(ratio_rows, system, args.output)
+        pb_i_rows = pb_i_ratio_outlier_rows(
+            outlier_selections,
+            args.input,
+            ROOT,
+            system,
+            args.outlier_selection,
+            args.pb_i_reference_cutoff_A,
+            args.pb_i_ratio_deviation_threshold,
+        )
+        pb_i_ratio_filename = write_pb_i_ratio_outliers(
+            pb_i_rows, system, args.output
+        )
+        outlier_summary[f"{system}_structure_ratios"] = {
+            "file": ratio_filename,
+            "n_selected_structures": len(ratio_rows),
+            "ratio_definition": "distorted_structure / DFT_relaxed_CONTCAR",
+            "outlier_selection": args.outlier_selection,
+        }
+        outlier_summary[f"{system}_property_outlier_pb_i_ratios"] = {
+            "file": pb_i_ratio_filename,
+            "n_pb_i_pairs_written": len(pb_i_rows),
+            "ratio_definition": "distorted_structure / DFT_relaxed_CONTCAR",
+            "reference_neighbour_cutoff_A": args.pb_i_reference_cutoff_A,
+            "absolute_ratio_deviation_threshold": args.pb_i_ratio_deviation_threshold,
+            "outlier_selection": args.outlier_selection,
         }
     (args.output / "outlier_summary.json").write_text(
         json.dumps(outlier_summary, indent=2) + "\n"
@@ -694,17 +925,30 @@ def main() -> None:
     for phase in sorted({item.phase for item in results}):
         phase_results = [item for item in results if item.phase == phase]
         plot_parity(phase_results, phase, args.output / f"parity_plot_{phase}.png")
+        plot_stress_parity(
+            phase_results, phase, args.output / f"stress_parity_plot_{phase}.png"
+        )
     overall = [row for row in rows if row["scope"] == "all"]
     print(f"Evaluated {len(results)} structures; skipped {len(failures)}.")
     for row in overall:
         print(f"{row['target']}: MAE={row['mae']:.6g} {row['unit']}, RMSE={row['rmse']:.6g}, R2={row['r2']:.6g}")
     for phase in sorted({item.phase for item in results}):
         print(f"Plot: {args.output / f'parity_plot_{phase}.png'}")
+        print(f"Stress plot: {args.output / f'stress_parity_plot_{phase}.png'}")
     for label, details in outlier_summary.items():
         if "n_selected" in details:
             print(f"Outliers ({label}): {details['n_selected']} -> {args.output / details['file']}")
+        elif "n_pb_i_pairs_written" in details:
+            print(
+                f"Pb-I ratios from energy/force/stress outliers ({label}): "
+                f"{details['n_pb_i_pairs_written']} "
+                f"-> {args.output / details['file']}"
+            )
         else:
-            print(f"Pair distances ({label}): {details['n_pairs']} -> {args.output / details['file']}")
+            print(
+                f"Structural ratios ({label}): {details['n_selected_structures']} "
+                f"-> {args.output / details['file']}"
+            )
 
 
 if __name__ == "__main__":
