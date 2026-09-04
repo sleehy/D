@@ -2,11 +2,11 @@
 """Generate non-overlapping FAPbI3 active-learning candidates.
 
 The requested cohorts are sampled uniformly inside their severity intervals.
-Twenty percent of each cohort reuse an exact per-structure seed from the
-existing parity set, while the other eighty percent use a separate master
-seed.  The midpoint severity grid keeps reused-seed structures distinct from
-the parity set's 0.1-spaced severity values; an additional structure
-fingerprint check prevents any accidental duplicate.
+The generator tries to reuse exact per-structure seeds from the existing
+parity set; a reused seed that no longer passes the candidate validity checks
+is replaced with a new seed. The midpoint severity grid keeps reused-seed
+structures distinct from the parity set's 0.1-spaced severity values; an
+additional structure fingerprint check prevents any accidental duplicate.
 """
 
 from __future__ import annotations
@@ -22,16 +22,21 @@ import numpy as np
 from ase import Atoms
 from ase.io import read, write
 
-from generate_fapbi3_dataset import DEFAULT_PHASES, ROOT, collision_check, identify_fa_cations, prepare_vasp_inputs
+from generate_fapbi3_dataset import (
+    DEFAULT_PHASES,
+    ROOT,
+    collision_check,
+    geometry_check,
+    identify_fa_bonds,
+    identify_fa_cations,
+    prepare_vasp_inputs,
+)
 from generate_parity_set import distortion_label, perturb
 
 
 COHORTS = (
-    ("t-FAPI3", "global_rattle", 10, 0.8, 1.1),
-    ("t-FAPI3", "combined", 10, 0.8, 1.1),
-    ("O-FAPI3", "global_rattle", 18, 0.5, 1.0),
-    ("O-FAPI3", "combined", 6, 0.8, 1.1),
-    ("O-FAPI3", "strong_strain", 6, 0.8, 1.1)
+    ("t-FAPI3", "cage_rattle", 16, 0.2, 1.0),
+    ("O-FAPI3", "global_rattle", 14, 0.5, 1.0),
 )
 PARITY_MASTER_SEED = 20260810
 
@@ -47,7 +52,7 @@ def parse_args() -> argparse.Namespace:
         help="Existing parity set used for seed reuse and duplicate exclusion.",
     )
     parser.add_argument(
-        "--new-master-seed", type=int, default=20260901,
+        "--new-master-seed", type=int, default=20260903,
         help="Master seed for the 80%% of structures that do not reuse a parity seed.",
     )
     parser.add_argument(
@@ -129,6 +134,7 @@ def main() -> None:
         source = read(source_path)
         source.pbc = True
         fa_groups = identify_fa_cations(source)
+        fa_bonds = identify_fa_bonds(source, fa_groups)
         phase_dir = args.output / phase
         phase_dir.mkdir(exist_ok=True)
         same_seed_count = count // 5
@@ -147,27 +153,29 @@ def main() -> None:
             reuse_record = None
             if requested_reuse_record:
                 # A seed that is valid at its parity severity can fail the stricter
-                # collision check at a new severity.  Fall back only to unused
-                # parity seeds from this same phase/family, retaining the 20% ratio.
+                # FA-geometry check at a new severity. Try other unused parity
+                # seeds from this phase/family before falling back to a new seed.
                 for candidate_record in [requested_reuse_record, *spare_reuse_records]:
                     seed = int(candidate_record["seed"])
                     if seed in used_reused_seeds:
                         continue
                     atoms, details = perturb(source, fa_groups, family, severity, np.random.default_rng(seed))
                     valid, contact = collision_check(atoms, fa_groups, args.min_distance_scale)
+                    if valid:
+                        valid, geometry = geometry_check(atoms, fa_bonds)
                     if valid and fingerprint(atoms) not in existing_fingerprints:
                         reuse_record = candidate_record
                         used_reused_seeds.add(seed)
                         break
-                if reuse_record is None:
-                    raise RuntimeError(f"Could not reuse a unique valid parity seed for {phase}/{family}/{index:02d}")
-            else:
+            if reuse_record is None:
                 for attempt in range(1, 1001):
                     seed = new_seed(args.new_master_seed, phase, family, index, attempt)
                     if seed in parity_seeds or seed in used_new_seeds:
                         continue
                     atoms, details = perturb(source, fa_groups, family, severity, np.random.default_rng(seed))
                     valid, contact = collision_check(atoms, fa_groups, args.min_distance_scale)
+                    if valid:
+                        valid, geometry = geometry_check(atoms, fa_bonds)
                     if valid and fingerprint(atoms) not in existing_fingerprints:
                         break
                 else:
@@ -202,6 +210,7 @@ def main() -> None:
                 **details,
                 "distortion_label": distortion_label(family),
                 **contact,
+                **geometry,
             }
             (config_dir / "metadata.json").write_text(json.dumps(metadata, indent=2) + "\n")
             extxyz_atoms = atoms.copy()
@@ -239,7 +248,7 @@ def main() -> None:
     }
     (args.output / "generation_summary.json").write_text(json.dumps(summary, indent=2) + "\n")
     print(f"Generated {len(rows)} active-learning candidates in {args.output}")
-    print(f"Parity-seed reuse: {summary['n_parity_seed_reused']} (20%); new seeds: {summary['n_new_seed']} (80%)")
+    print(f"Parity-seed reuse: {summary['n_parity_seed_reused']}; new seeds: {summary['n_new_seed']}")
 
 
 if __name__ == "__main__":

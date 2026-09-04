@@ -90,7 +90,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--checkpoint",
         type=Path,
-        default=PROJECT_DIR / "checkpoint_fine_tuned_al_round1.pth",
+        default=PROJECT_DIR / "checkpoint_fine_tuned_al_round2.pth",
         help="Fine-tuned SevenNet checkpoint.",
     )
     parser.add_argument(
@@ -102,7 +102,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output",
         type=Path,
-        default=PROJECT_DIR / "parity_results2",
+        default=PROJECT_DIR / "parity_results_round2",
         help="Directory for plots and CSV output.",
     )
     parser.add_argument(

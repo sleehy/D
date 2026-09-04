@@ -21,6 +21,7 @@ from typing import Any
 import numpy as np
 from ase import Atoms
 from ase.io import read, write
+from ase.neighborlist import neighbor_list
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -47,6 +48,19 @@ MODE_COUNTS = {
     "strain_rattle": 17,
     "mixed": 17,
 }
+
+# These ranges deliberately allow thermal/distortion broadening while rejecting
+# broken or implausibly compressed bonds in the formamidinium (FA) cation.
+# They are applied only to the bonded C--N, C--H, and N--H pairs identified in
+# the relaxed source structure; nonbonded contacts remain the responsibility
+# of ``collision_check`` below.
+FA_BOND_LIMITS_A = {
+    "C-N": (1.00, 1.65),
+    "C-H": (0.80, 1.30),
+    "N-H": (0.75, 1.35),
+}
+PB_I_BOND_LIMIT_A = (2.65, 3.85)
+PB_I_NEIGHBOR_CUTOFF_A = 4.00
 
 STATIC_INCAR = """\
 SYSTEM = FAPbI3 MLP dataset single point
@@ -150,6 +164,134 @@ def identify_fa_cations(atoms: Atoms) -> list[list[int]]:
         if actual != count:
             raise ValueError(f"Expected {count} {symbol} atoms, found {actual}.")
     return groups
+
+
+def identify_fa_bonds(
+    atoms: Atoms, fa_groups: list[list[int]]
+) -> list[tuple[int, int, str]]:
+    """Return the C--N, C--H, and N--H bonds of the source FA cations.
+
+    The returned atom-index topology is subsequently kept fixed while a
+    candidate is distorted. Re-identifying nearest atoms after a global rattle
+    could silently accept a proton that has moved to the wrong N atom.
+    """
+    bonds: list[tuple[int, int, str]] = []
+    for group in fa_groups:
+        carbon, *rest = group
+        nitrogens = rest[:2]
+        hydrogens = rest[2:]
+
+        bonds.extend((carbon, nitrogen, "C-N") for nitrogen in nitrogens)
+        carbon_hydrogen = min(
+            hydrogens, key=lambda hydrogen: atoms.get_distance(carbon, hydrogen, mic=True)
+        )
+        bonds.append((carbon, carbon_hydrogen, "C-H"))
+
+        remaining_hydrogens = [
+            hydrogen for hydrogen in hydrogens if hydrogen != carbon_hydrogen
+        ]
+        assigned_hydrogens: set[int] = set()
+        for nitrogen in nitrogens:
+            nearest = sorted(
+                remaining_hydrogens,
+                key=lambda hydrogen: atoms.get_distance(nitrogen, hydrogen, mic=True),
+            )[:2]
+            if len(nearest) != 2 or assigned_hydrogens.intersection(nearest):
+                raise ValueError("Could not assign two unique N-H bonds in an FA cation.")
+            assigned_hydrogens.update(nearest)
+            bonds.extend((nitrogen, hydrogen, "N-H") for hydrogen in nearest)
+
+        if len(assigned_hydrogens) != len(remaining_hydrogens):
+            raise ValueError("FA cation does not contain the expected four N-H bonds.")
+    return bonds
+
+
+def fa_geometry_check(
+    atoms: Atoms, fa_bonds: list[tuple[int, int, str]]
+) -> tuple[bool, dict[str, Any]]:
+    """Reject candidates whose source FA bond topology has become unphysical."""
+    distances: list[float] = []
+    for first, second, bond_type in fa_bonds:
+        distance = float(atoms.get_distance(first, second, mic=True))
+        lower, upper = FA_BOND_LIMITS_A[bond_type]
+        if not lower <= distance <= upper:
+            return False, {
+                "reason": "fa_bond_out_of_range",
+                "bond_type": bond_type,
+                "indices": [first, second],
+                "symbols": [atoms[first].symbol, atoms[second].symbol],
+                "distance_A": distance,
+                "allowed_range_A": [lower, upper],
+            }
+        distances.append(distance)
+    return True, {
+        "fa_bond_distance_min_A": min(distances),
+        "fa_bond_distance_max_A": max(distances),
+    }
+
+
+def identify_pb_i_bonds(atoms: Atoms) -> list[tuple[int, int, np.ndarray]]:
+    """Return the six periodic Pb--I nearest-neighbor bonds for every Pb."""
+    centers, neighbors, offsets = neighbor_list(
+        "ijS", atoms, PB_I_NEIGHBOR_CUTOFF_A
+    )
+    bonds: list[tuple[int, int, np.ndarray]] = []
+    for lead in (atom.index for atom in atoms if atom.symbol == "Pb"):
+        candidates = []
+        for center, neighbor, offset in zip(centers, neighbors, offsets):
+            if center != lead or atoms[neighbor].symbol != "I":
+                continue
+            vector = atoms.positions[neighbor] + offset @ atoms.cell.array - atoms.positions[lead]
+            candidates.append((float(np.linalg.norm(vector)), int(neighbor), offset.copy()))
+        nearest = sorted(candidates, key=lambda item: item[0])[:6]
+        if len(nearest) != 6:
+            raise ValueError(f"Pb index {lead} does not have six I neighbors within 4.0 A.")
+        bonds.extend((lead, iodine, offset) for _, iodine, offset in nearest)
+    return bonds
+
+
+def pb_i_geometry_check(atoms: Atoms) -> tuple[bool, dict[str, Any]]:
+    """Reject candidates with compressed or broken Pb--I cage bonds."""
+    lower, upper = PB_I_BOND_LIMIT_A
+    distances: list[float] = []
+    # Rebuild the periodic neighbor images after every perturbation. A wrapped
+    # I coordinate can represent a different cell image from the source while
+    # remaining the same physical nearest-neighbor Pb--I bond.
+    try:
+        pb_i_bonds = identify_pb_i_bonds(atoms)
+    except ValueError as exc:
+        return False, {"reason": "pb_i_coordination_invalid", "detail": str(exc)}
+    for lead, iodine, offset in pb_i_bonds:
+        vector = atoms.positions[iodine] + offset @ atoms.cell.array - atoms.positions[lead]
+        distance = float(np.linalg.norm(vector))
+        if not lower <= distance <= upper:
+            return False, {
+                "reason": "pb_i_bond_out_of_range",
+                "bond_type": "Pb-I",
+                "indices": [lead, iodine],
+                "symbols": ["Pb", "I"],
+                "distance_A": distance,
+                "allowed_range_A": [lower, upper],
+            }
+        distances.append(distance)
+    return True, {
+        "pb_i_bond_distance_min_A": min(distances),
+        "pb_i_bond_distance_max_A": max(distances),
+    }
+
+
+def geometry_check(
+    atoms: Atoms,
+    fa_bonds: list[tuple[int, int, str]],
+) -> tuple[bool, dict[str, Any]]:
+    """Apply the FA molecular and Pb--I cage geometry validity checks."""
+    valid, fa_report = fa_geometry_check(atoms, fa_bonds)
+    if not valid:
+        return False, fa_report
+    valid, pb_i_report = pb_i_geometry_check(atoms)
+    if not valid:
+        return False, pb_i_report
+    return True, {**fa_report, **pb_i_report}
 
 
 def axis_angle_matrix(axis: np.ndarray, angle_deg: float) -> np.ndarray:
@@ -508,6 +650,7 @@ def generate(args: argparse.Namespace) -> None:
         source = read(source_path)
         source.pbc = True
         fa_groups = identify_fa_cations(source)
+        fa_bonds = identify_fa_bonds(source, fa_groups)
         phase_dir = args.output / phase
         phase_dir.mkdir(exist_ok=args.extend)
 
@@ -543,6 +686,8 @@ def generate(args: argparse.Namespace) -> None:
                     valid, contact = collision_check(
                         atoms, fa_groups, args.min_distance_scale
                     )
+                    if valid:
+                        valid, geometry = geometry_check(atoms, fa_bonds)
                     if valid:
                         break
                 else:
@@ -580,6 +725,7 @@ def generate(args: argparse.Namespace) -> None:
                     "cell_A": np.round(atoms.cell.array, 10).tolist(),
                     **details,
                     **contact,
+                    **geometry,
                 }
                 (config_dir / "metadata.json").write_text(
                     json.dumps(metadata, indent=2) + "\n"

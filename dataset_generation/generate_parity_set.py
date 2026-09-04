@@ -26,6 +26,8 @@ from generate_fapbi3_dataset import (
     ROOT,
     apply_fa_rotations,
     collision_check,
+    geometry_check,
+    identify_fa_bonds,
     identify_fa_cations,
     prepare_vasp_inputs,
     random_strain,
@@ -185,6 +187,7 @@ def main() -> None:
         source = read(source_path)
         source.pbc = True
         fa_groups = identify_fa_cations(source)
+        fa_bonds = identify_fa_bonds(source, fa_groups)
         phase_dir = args.output / phase
         phase_dir.mkdir()
 
@@ -201,6 +204,8 @@ def main() -> None:
                     valid, contact = collision_check(
                         atoms, fa_groups, args.min_distance_scale
                     )
+                    if valid:
+                        valid, geometry = geometry_check(atoms, fa_bonds)
                     if valid:
                         break
                 else:
@@ -231,6 +236,7 @@ def main() -> None:
                     **details,
                     "distortion_label": distortion_label(family),
                     **contact,
+                    **geometry,
                 }
                 (config_dir / "metadata.json").write_text(
                     json.dumps(metadata, indent=2) + "\n"
